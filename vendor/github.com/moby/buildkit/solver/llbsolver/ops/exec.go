@@ -14,6 +14,7 @@ import (
 	"github.com/containerd/platforms"
 	"github.com/moby/buildkit/cache"
 	"github.com/moby/buildkit/executor"
+	"github.com/moby/buildkit/util/bklog"
 	resourcestypes "github.com/moby/buildkit/executor/resources/types"
 	"github.com/moby/buildkit/frontend/gateway/container"
 	"github.com/moby/buildkit/session"
@@ -178,6 +179,11 @@ func (e *ExecOp) CacheMap(ctx context.Context, g session.Group, index int) (*sol
 	if err != nil {
 		return nil, false, err
 	}
+
+	// Debug: log the exec cache key computation
+	bklog.G(ctx).Debugf("[EXEC CACHE KEY] cmd=%v env=%v cwd=%q digest=%s platform=%s/%s", op.Meta.Args, op.Meta.Env, op.Meta.Cwd, dgst, p.OS, p.Architecture)
+	bklog.G(ctx).Debugf("[EXEC CACHE KEY DETAIL] numMounts=%d numInputs=%d rawJSON=%s", len(op.Mounts), e.numInputs, string(dt))
+
 	cm := &solver.CacheMap{
 		Digest: dgst,
 		Deps: make([]struct {

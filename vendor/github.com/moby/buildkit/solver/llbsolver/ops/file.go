@@ -19,6 +19,7 @@ import (
 	"github.com/moby/buildkit/solver/llbsolver/ops/fileoptypes"
 	"github.com/moby/buildkit/solver/llbsolver/ops/opsutils"
 	"github.com/moby/buildkit/solver/pb"
+	"github.com/moby/buildkit/util/bklog"
 	"github.com/moby/buildkit/util/cachedigest"
 	"github.com/moby/buildkit/util/flightcontrol"
 	"github.com/moby/buildkit/worker"
@@ -139,6 +140,26 @@ func (f *fileOp) CacheMap(ctx context.Context, g session.Group, index int) (*sol
 	if err != nil {
 		return nil, false, err
 	}
+
+	// Debug: log file operation cache key computation
+	actionTypes := make([]string, 0, len(f.op.Actions))
+	for _, action := range f.op.Actions {
+		switch action.Action.(type) {
+		case *pb.FileAction_Mkdir:
+			actionTypes = append(actionTypes, "mkdir")
+		case *pb.FileAction_Mkfile:
+			actionTypes = append(actionTypes, "mkfile")
+		case *pb.FileAction_Symlink:
+			actionTypes = append(actionTypes, "symlink")
+		case *pb.FileAction_Rm:
+			actionTypes = append(actionTypes, "rm")
+		case *pb.FileAction_Copy:
+			actionTypes = append(actionTypes, "copy")
+		}
+	}
+	bklog.G(ctx).Debugf("[FILE CACHE KEY] actions=%v numInputs=%d digest=%s", actionTypes, f.numInputs, dgst)
+	bklog.G(ctx).Debugf("[FILE CACHE KEY DETAIL] selectors=%v rawJSON=%s", selectors, string(dt))
+
 	cm := &solver.CacheMap{
 		Digest: dgst,
 		Deps: make([]struct {

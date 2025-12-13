@@ -10,6 +10,7 @@ import (
 	"github.com/moby/buildkit/solver/llbsolver/ops/opsutils"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/moby/buildkit/source"
+	"github.com/moby/buildkit/util/bklog"
 	"github.com/moby/buildkit/util/cachedigest"
 	"github.com/moby/buildkit/worker"
 	digest "github.com/opencontainers/go-digest"
@@ -96,6 +97,9 @@ func (s *SourceOp) CacheMap(ctx context.Context, g session.Group, index int) (*s
 	if strings.HasPrefix(k, "session:") {
 		dgst = digest.Digest("random:" + dgst.Encoded())
 	}
+
+	// Debug: log source cache key computation
+	bklog.G(ctx).Debugf("[SOURCE CACHE KEY] id=%q cacheKey=%q pin=%q digest=%s", s.id, k, pin, dgst)
 
 	return &solver.CacheMap{
 		// TODO: add os/arch

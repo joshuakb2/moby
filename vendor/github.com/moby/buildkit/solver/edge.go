@@ -579,6 +579,10 @@ func (e *edge) processCacheMapReq() {
 	e.cacheMap = resp.CacheMap
 	e.cacheMapDone = resp.complete
 	e.cacheMapIndex++
+
+	// Debug: log cache map computation
+	bklog.G(context.TODO()).Debugf("[CACHE MAP] vertex=%q digest=%s numDeps=%d ignoreCache=%v", e.edge.Vertex.Name(), e.cacheMap.Digest, len(e.deps), e.op.IgnoreCache())
+
 	if len(e.deps) == 0 {
 		e.cacheMapDigests = append(e.cacheMapDigests, e.cacheMap.Digest)
 		if !e.op.IgnoreCache() {
@@ -586,6 +590,7 @@ func (e *edge) processCacheMapReq() {
 			if err != nil {
 				bklog.G(context.TODO()).Error(errors.Wrap(err, "invalid query response")) // make the build fail for this error
 			} else {
+				bklog.G(context.TODO()).Debugf("[CACHE QUERY] vertex=%q digest=%s foundKeys=%d", e.edge.Vertex.Name(), e.cacheMap.Digest, len(keys))
 				for _, k := range keys {
 					k.vtx = e.edge.Vertex.Digest()
 					records, err := e.op.Cache().Records(context.Background(), k)
@@ -593,6 +598,7 @@ func (e *edge) processCacheMapReq() {
 						bklog.G(context.TODO()).Errorf("error receiving cache records: %v", err)
 						continue
 					}
+					bklog.G(context.TODO()).Debugf("[CACHE RECORDS] vertex=%q foundRecords=%d", e.edge.Vertex.Name(), len(records))
 
 					for _, r := range records {
 						e.cacheRecords[r.ID] = r
@@ -601,6 +607,8 @@ func (e *edge) processCacheMapReq() {
 					e.keys = append(e.keys, e.makeExportable(k, records))
 				}
 			}
+		} else {
+			bklog.G(context.TODO()).Debugf("[CACHE SKIP] vertex=%q ignoreCache=true, skipping cache lookup", e.edge.Vertex.Name())
 		}
 		e.state = edgeStatusCacheSlow
 	}
@@ -905,6 +913,17 @@ func (e *edge) computeCacheKeyFromDep(dep *dep, f *pipeFactory) (addedNew bool) 
 // execIfPossible creates a request for getting the edge result if there is
 // enough state
 func (e *edge) execIfPossible(f *pipeFactory) bool {
+	// Debug: log cache decision for this vertex
+	cacheDigest := ""
+	if e.cacheMap != nil {
+		cacheDigest = string(e.cacheMap.Digest)
+	}
+	if len(e.cacheRecords) > 0 {
+		bklog.G(context.TODO()).Debugf("[CACHE HIT] vertex=%q digest=%s cacheRecords=%d", e.edge.Vertex.Name(), cacheDigest, len(e.cacheRecords))
+	} else if e.allDepsCompleted {
+		bklog.G(context.TODO()).Debugf("[CACHE MISS] vertex=%q digest=%s (no matching cache records, will execute)", e.edge.Vertex.Name(), cacheDigest)
+	}
+
 	if len(e.cacheRecords) > 0 {
 		if e.keysDidChange {
 			e.postpone(f)
